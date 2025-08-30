@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import os
+import sys
 from core.server import C2Server
 
 def main():
@@ -11,6 +13,7 @@ def main():
     parser.add_argument('--key', help='Chave de criptografia para comunicação')
     parser.add_argument('--listen', action='store_true', help='Iniciar servidor automaticamente')
     parser.add_argument('--connect', help='Conectar a uma vítima (formato: ip:porta)')
+    parser.add_argument('--no-banner', action='store_true', help='Não mostrar banner inicial')
     
     args = parser.parse_args()
     
@@ -30,11 +33,14 @@ def main():
             print("[red]Formato inválido. Use: ip:porta[/red]")
             return
     
+    if not args.no_banner:
+        server.display_banner()
+    
     if args.listen:
         server.run()
     else:
-        server.display_banner()
-        print("[green]Use 'help' para ver os comandos disponíveis[/green]")
+        if not args.no_banner:
+            print("[green]Use 'help' para ver os comandos disponíveis[/green]")
         
         # Modo de configuração interativa antes de iniciar
         while True:
