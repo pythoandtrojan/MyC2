@@ -1,3 +1,5 @@
+from rich.panel import Panel
+
 def display_banner(console, host, port):
     banner = """
 ██████╗ ██████╗ 
