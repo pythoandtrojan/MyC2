@@ -27,7 +27,7 @@ COMMAND & CONTROL SERVER v5.0
 def display_mini_banner(console):
     mini_banner = Text("""
 ╔══════════════════════════════════╗
-║   C2 SERVER v5.0 - CONTROLE REMOTO   ║
+║ C2 SERVER v5.0 - CONTROLE REMOTO ║
 ╚══════════════════════════════════╝
 """, style="bold cyan")
     
